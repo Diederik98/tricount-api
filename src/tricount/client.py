@@ -569,7 +569,6 @@ class TricountAPI:
             {
                 "User-Agent": USER_AGENT,
                 "app-id": credentials.app_id,
-                
             }
         )
         self.user_id: Optional[int] = None

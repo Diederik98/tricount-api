@@ -574,7 +574,7 @@ class TricountAPI:
         self.user_id: Optional[int] = None
         self._authenticated = False
 
-    def authenticate(self) -> int:
+    def register_installation(self) -> int:
         """Create/restore an anonymous installation session and return its user ID.
 
         This is installation bootstrap, not named-user sign-in. The response may
@@ -608,9 +608,13 @@ class TricountAPI:
         self._authenticated = True
         return user_id
 
+    def authenticate(self) -> int:
+        """Compatibility alias for register_installation()."""
+        return self.register_installation()
+
     def _ensure_authenticated(self) -> None:
         if not self._authenticated:
-            raise RuntimeError("Not authenticated. Call authenticate() first.")
+            raise RuntimeError("Installation not registered. Call register_installation() first.")
 
     # -------------------------------------------------------------------------
     # Tricount Operations
@@ -2108,5 +2112,5 @@ def load_client(
         creds.save(credentials_path)
 
     client = TricountAPI(creds)
-    client.authenticate()
+    client.register_installation()
     return client

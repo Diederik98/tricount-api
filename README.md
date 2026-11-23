@@ -46,7 +46,7 @@ The API uses device-based authentication. On first use, credentials are automati
 
 ```python
 from pathlib import Path
-from tricount import Credentials, TricountAPI
+from tricount import Credentials, TricountAPI, build_android_user_agent
 
 # Manual credential management
 creds = Credentials.generate()
@@ -57,7 +57,26 @@ creds = Credentials.load(Path("my_credentials.json"))
 
 # Create and authenticate client
 client = TricountAPI(creds)
-user_id = client.authenticate()
+user_id = client.register_installation()
+```
+
+`register_installation()` creates or restores an anonymous app installation; it
+does not sign in to a named Tricount account. `authenticate()` remains as a
+compatibility alias. The Android app builds its `User-Agent` as
+`appId:buildType:versionName:versionCode:ANDROID:osVersion:supportedFeaturesHash[:tamperState]`.
+The analyzed package/version are fixed, but Android version, feature hash and
+optional tamper state are runtime-provided. The default `...:13:C` header is an
+example rather than a captured device value. Configure it when those runtime
+values are known:
+
+```python
+client = TricountAPI(
+    creds,
+    user_agent=build_android_user_agent(
+        android_version="15",
+        supported_features_hash="<runtime-value>",
+    ),
+)
 ```
 
 ## Core Concepts

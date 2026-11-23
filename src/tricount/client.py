@@ -26,8 +26,17 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 # =============================================================================
 
 BASE_URL = "https://api.tricount.bunq.com"
-USER_AGENT = "com.bunq.tricount.android:RELEASE:7.0.7:3174:ANDROID:13:C"
-REQUEST_ID = "049bfcdf-6ae4-4cee-af7b-45da31ea85d0"
+USER_AGENT = "com.tribab.tricount.android:RELEASE:14.9.1:500004158:ANDROID:13:C"
+
+
+class _RequestIdSession(requests.Session):
+    """Assign a fresh request ID unless the caller already supplied one."""
+
+    def request(self, method, url, **kwargs):
+        headers = dict(kwargs.pop("headers", {}) or {})
+        if not any(name.lower() == "x-bunq-client-request-id" for name in headers):
+            headers["X-Bunq-Client-Request-Id"] = str(uuid.uuid4())
+        return super().request(method, url, headers=headers, **kwargs)
 
 
 # =============================================================================
@@ -538,7 +547,7 @@ class Credentials:
             private_key.public_key()
             .public_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.PKCS1,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
             )
             .decode("utf-8")
         )
@@ -555,25 +564,30 @@ class TricountAPI:
 
     def __init__(self, credentials: Credentials):
         self.credentials = credentials
-        self.session = requests.Session()
+        self.session = _RequestIdSession()
         self.session.headers.update(
             {
                 "User-Agent": USER_AGENT,
                 "app-id": credentials.app_id,
-                "X-Bunq-Client-Request-Id": REQUEST_ID,
+                
             }
         )
         self.user_id: Optional[int] = None
         self._authenticated = False
 
     def authenticate(self) -> int:
-        """Authenticate with the API and return user ID"""
+        """Create/restore an anonymous installation session and return its user ID.
+
+        This is installation bootstrap, not named-user sign-in. The response may
+        also contain TokenDevice and TokenRefreshUser; this client currently uses
+        the Token value for subsequent API calls.
+        """
         resp = self.session.post(
             f"{BASE_URL}/v1/session-registry-installation",
             json={
                 "app_installation_uuid": self.credentials.app_id,
                 "client_public_key": self.credentials.public_key_pem,
-                "device_description": "Android",
+                "device_description": "Android Device",
             },
         )
         resp.raise_for_status()

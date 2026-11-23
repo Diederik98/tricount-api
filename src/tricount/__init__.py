@@ -40,6 +40,7 @@ from tricount.client import (
     Tricount,
     # Main client
     TricountAPI,
+    build_android_user_agent,
     # Convenience function
     load_client,
 )
@@ -70,6 +71,7 @@ __all__ = [
     "Credentials",
     # Main client
     "TricountAPI",
+    "build_android_user_agent",
     # Convenience function
     "load_client",
 ]

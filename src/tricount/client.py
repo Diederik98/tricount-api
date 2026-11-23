@@ -29,14 +29,40 @@ BASE_URL = "https://api.tricount.bunq.com"
 USER_AGENT = "com.tribab.tricount.android:RELEASE:14.9.1:500004158:ANDROID:13:C"
 
 
+def build_android_user_agent(
+    *,
+    app_id: str = "com.tribab.tricount.android",
+    build_type: str = "RELEASE",
+    version_name: str = "14.9.1",
+    version_code: int = 500004158,
+    android_version: str = "13",
+    supported_features_hash: str = "C",
+    tamper_state: str | None = None,
+) -> str:
+    """Build the format used by Tricount's Android User-Agent interceptor.
+
+    Android source confirms the field order, but several values are injected at
+    runtime. ``USER_AGENT`` is therefore an example for the analyzed APK, not a
+    captured device header. Pass the values matching the target app/device when
+    known. ``tamper_state`` is appended only when the app's provider returns it.
+    """
+    fields = [app_id, build_type, version_name, str(version_code), "ANDROID",
+              android_version, supported_features_hash]
+    if tamper_state is not None:
+        fields.append(tamper_state)
+    return ":".join(fields)
+
+
+
+
 class _RequestIdSession(requests.Session):
-    """Assign a fresh request ID unless the caller already supplied one."""
+    """Add the request ID the Android app generates for each HTTP request."""
 
     def request(self, method, url, **kwargs):
-        headers = dict(kwargs.pop("headers", {}) or {})
-        if not any(name.lower() == "x-bunq-client-request-id" for name in headers):
+        headers = kwargs.setdefault("headers", {})
+        if not any(key.lower() == "x-bunq-client-request-id" for key in headers):
             headers["X-Bunq-Client-Request-Id"] = str(uuid.uuid4())
-        return super().request(method, url, headers=headers, **kwargs)
+        return super().request(method, url, **kwargs)
 
 
 # =============================================================================
@@ -562,12 +588,12 @@ class Credentials:
 class TricountAPI:
     """Tricount API client"""
 
-    def __init__(self, credentials: Credentials):
+    def __init__(self, credentials: Credentials, *, user_agent: str = USER_AGENT):
         self.credentials = credentials
         self.session = _RequestIdSession()
         self.session.headers.update(
             {
-                "User-Agent": USER_AGENT,
+                "User-Agent": user_agent,
                 "app-id": credentials.app_id,
             }
         )
@@ -575,11 +601,9 @@ class TricountAPI:
         self._authenticated = False
 
     def register_installation(self) -> int:
-        """Create/restore an anonymous installation session and return its user ID.
+        """Create or restore the anonymous installation session.
 
-        This is installation bootstrap, not named-user sign-in. The response may
-        also contain TokenDevice and TokenRefreshUser; this client currently uses
-        the Token value for subsequent API calls.
+        This is device installation bootstrap, not named-user sign-in.
         """
         resp = self.session.post(
             f"{BASE_URL}/v1/session-registry-installation",
@@ -609,12 +633,12 @@ class TricountAPI:
         return user_id
 
     def authenticate(self) -> int:
-        """Compatibility alias for register_installation()."""
+        """Compatibility alias for :meth:`register_installation`."""
         return self.register_installation()
 
     def _ensure_authenticated(self) -> None:
         if not self._authenticated:
-            raise RuntimeError("Installation not registered. Call register_installation() first.")
+            raise RuntimeError("Not authenticated. Call authenticate() first.")
 
     # -------------------------------------------------------------------------
     # Tricount Operations
@@ -2112,5 +2136,5 @@ def load_client(
         creds.save(credentials_path)
 
     client = TricountAPI(creds)
-    client.register_installation()
+    client.authenticate()
     return client
